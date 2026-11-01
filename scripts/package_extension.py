@@ -39,7 +39,7 @@ EXCLUDED_DIRECTORIES = frozenset(
     }
 )
 EXCLUDED_FILES = frozenset(
-    {".fs-package.yaml", ".fs-extension-install.yaml", "live-oracle.local.json"}
+    {".fs-package.yaml", ".fs-extension-install.yaml", "live-oracle.local.json", "SHA256SUMS"}
 )
 
 

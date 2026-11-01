@@ -192,3 +192,10 @@ def test_output_must_not_overlap_release_payload(source, directory):
     with pytest.raises(ValueError, match="Output directory"):
         module.package_extension(source, "linux-amd64", source / directory)
     assert not list((source / directory).glob("*.zip"))
+
+
+def test_checksum_manifest_does_not_make_archive_self_referential(source, tmp_path):
+    (source / "SHA256SUMS").write_text("prior release manifest\n")
+    archive = packager().package_extension(source, "linux-amd64", tmp_path / "out")
+    with zipfile.ZipFile(archive) as content:
+        assert not any(name.endswith("/SHA256SUMS") for name in content.namelist())
