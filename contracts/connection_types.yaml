@@ -1,0 +1,83 @@
+{
+  "connection_types": [
+    {
+      "connection_type_id": "oracle",
+      "display_name": "Oracle",
+      "description": "One Oracle service using the pure-Go driver. Verified TLS; no wallets or connection-string overrides.",
+      "config_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "host",
+          "service_name"
+        ],
+        "properties": {
+          "host": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 253,
+            "title": "Server hostname or IP"
+          },
+          "port": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535,
+            "default": 1521
+          },
+          "tls": {
+            "type": "boolean",
+            "default": true
+          },
+          "request_timeout_seconds": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 30,
+            "default": 15
+          },
+          "service_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "allow_writes": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "secret_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "username",
+          "password"
+        ],
+        "properties": {
+          "username": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8192,
+            "title": "Username"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8192,
+            "title": "Password"
+          }
+        }
+      },
+      "capabilities": {
+        "test_connection": false,
+        "live_request": true,
+        "workflow_trigger": false,
+        "callback_ingress": false
+      },
+      "safety_profile": {
+        "requires_https": false,
+        "requires_host_allowlist": true,
+        "stores_secret_values": false
+      }
+    }
+  ]
+}

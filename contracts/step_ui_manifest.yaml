@@ -1,0 +1,46 @@
+{
+  "forms": [
+    {
+      "operation_id": "query",
+      "title": "Query Oracle",
+      "fields": [
+        {
+          "name": "statement",
+          "widget_type": "textarea",
+          "label": "SQL statement",
+          "required": true
+        },
+        {
+          "name": "parameters",
+          "widget_type": "json",
+          "label": "Positional bind values",
+          "required": false
+        },
+        {
+          "name": "max_rows",
+          "widget_type": "integer",
+          "label": "Maximum rows",
+          "required": false
+        }
+      ]
+    },
+    {
+      "operation_id": "execute_sql",
+      "title": "Execute Oracle DML",
+      "fields": [
+        {
+          "name": "statement",
+          "widget_type": "textarea",
+          "label": "SQL statement",
+          "required": true
+        },
+        {
+          "name": "parameters",
+          "widget_type": "json",
+          "label": "Positional bind values",
+          "required": false
+        }
+      ]
+    }
+  ]
+}

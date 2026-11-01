@@ -1,0 +1,89 @@
+{
+  "component_id": "oracle_connection",
+  "type": "connection_form",
+  "title": "Oracle connection",
+  "description": "Oracle service endpoint with verified TLS and writes disabled by default.",
+  "data": {
+    "connection_kind": "extension",
+    "connection_type": "oracle",
+    "config_fields": [
+      "host",
+      "port",
+      "tls",
+      "service_name",
+      "allow_writes",
+      "request_timeout_seconds"
+    ],
+    "secret_fields": [
+      "username",
+      "password"
+    ]
+  },
+  "defaults": {
+    "display_name": "Oracle",
+    "port": 1521,
+    "tls": true,
+    "allow_writes": false,
+    "request_timeout_seconds": 15
+  },
+  "fields": [
+    {
+      "path": "display_name",
+      "label": "Connection name",
+      "widget": "text"
+    },
+    {
+      "path": "environment",
+      "label": "Environment",
+      "widget": "text"
+    },
+    {
+      "path": "host",
+      "label": "Host",
+      "widget": "text",
+      "required": true
+    },
+    {
+      "path": "port",
+      "label": "Port",
+      "widget": "integer",
+      "required": false
+    },
+    {
+      "path": "tls",
+      "label": "Tls",
+      "widget": "boolean",
+      "required": false
+    },
+    {
+      "path": "request_timeout_seconds",
+      "label": "Request Timeout Seconds",
+      "widget": "integer",
+      "required": false
+    },
+    {
+      "path": "username",
+      "label": "Username",
+      "widget": "secret",
+      "required": true
+    },
+    {
+      "path": "password",
+      "label": "Password",
+      "widget": "secret",
+      "required": true
+    },
+    {
+      "path": "service_name",
+      "label": "Service name",
+      "widget": "text",
+      "required": true
+    },
+    {
+      "path": "allow_writes",
+      "label": "Enable DML writes",
+      "widget": "boolean",
+      "required": false
+    }
+  ]
+}

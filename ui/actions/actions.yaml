@@ -1,0 +1,107 @@
+{
+  "actions": [
+    {
+      "action_id": "query",
+      "workflow_visible": true,
+      "title": "Query Oracle",
+      "description": "One bounded SELECT with positional :1 binds.",
+      "required_scopes": [
+        "extension:invoke"
+      ],
+      "handler": {
+        "mode": "extension"
+      },
+      "parameters": [
+        {
+          "name": "connection_ref",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "statement",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "parameters",
+          "type": "json",
+          "required": false
+        },
+        {
+          "name": "max_rows",
+          "type": "integer",
+          "required": false
+        }
+      ],
+      "result_fields": [
+        "result.records",
+        "result.count",
+        "result.applied"
+      ],
+      "error_codes": [
+        "invalid_payload",
+        "invalid_connection",
+        "write_disabled",
+        "effect_claim_required",
+        "test_mode_suppressed",
+        "provider_unavailable",
+        "native_unavailable",
+        "invalid_provider_response",
+        "response_too_large",
+        "network_blocked",
+        "timeout",
+        "authentication_failed"
+      ],
+      "mutates_platform": false
+    },
+    {
+      "action_id": "execute_sql",
+      "workflow_visible": true,
+      "title": "Execute Oracle DML",
+      "description": "One INSERT, UPDATE, DELETE or MERGE. Requires writes enabled and durable effect claim.",
+      "required_scopes": [
+        "extension:invoke"
+      ],
+      "handler": {
+        "mode": "extension"
+      },
+      "parameters": [
+        {
+          "name": "connection_ref",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "statement",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "parameters",
+          "type": "json",
+          "required": false
+        }
+      ],
+      "result_fields": [
+        "result.records",
+        "result.count",
+        "result.applied"
+      ],
+      "error_codes": [
+        "invalid_payload",
+        "invalid_connection",
+        "write_disabled",
+        "effect_claim_required",
+        "test_mode_suppressed",
+        "provider_unavailable",
+        "native_unavailable",
+        "invalid_provider_response",
+        "response_too_large",
+        "network_blocked",
+        "timeout",
+        "authentication_failed"
+      ],
+      "mutates_platform": false
+    }
+  ]
+}

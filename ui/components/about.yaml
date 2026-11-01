@@ -1,0 +1,6 @@
+{
+  "component_id": "oracle_about",
+  "type": "markdown",
+  "title": "Oracle",
+  "content": "Run one bounded SELECT or opted-in DML statement with positional bind values. No triggers. TLS certificates and hostname are verified; wallets, clusters, PL/SQL and DDL are not supported."
+}

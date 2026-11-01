@@ -1,0 +1,28 @@
+{
+  "tag": "v1.3.0",
+  "commit": "b0010060a939455d91e4f8ba62dc3e72b1892469",
+  "go_image": "golang:1.26.2-bookworm@sha256:47ce5636e9936b2c5cbf708925578ef386b4f8872aec74a67bd13a627d242b19",
+  "source_date_epoch": 1779400183,
+  "patch": "scripts/patches/0001-flowsteward-oracle-safety.patch",
+  "patch_sha256": "bf5a50034175b0264d2229aa46f54a0bcc17cb7ca09974f82bc7dc813e578837",
+  "driver": {
+    "module": "github.com/sijms/go-ora/v2",
+    "version": "v2.9.0",
+    "module_sum": "h1:+iQbUeTeCOFMb5BsOMgUhV8KWyrv9yjKpcK4x7+MFrg=",
+    "mode": "pure-Go; OCI disabled"
+  },
+  "packages": [
+    "github.com/googleapis/mcp-toolbox/internal/sources/oracle",
+    "github.com/googleapis/mcp-toolbox/internal/tools/oracle/oraclesql"
+  ],
+  "binaries": {
+    "linux-amd64": {
+      "sha256": "90ee36afa8c531cf89b4d3f4505ac9af7e716d4d8c88fd5e42589b84fc6b06ff",
+      "size": 40980606
+    },
+    "linux-arm64": {
+      "sha256": "42fedaa485f38e32b3690fcf5afc1269a8ad98906dfc816fb84111a0e449460d",
+      "size": 39125118
+    }
+  }
+}

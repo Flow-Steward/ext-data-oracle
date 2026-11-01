@@ -1,0 +1,810 @@
+diff --git a/internal/sources/oracle/oracle.go b/internal/sources/oracle/oracle.go
+index ae92687..ea56254 100644
+--- a/internal/sources/oracle/oracle.go
++++ b/internal/sources/oracle/oracle.go
+@@ -7,15 +7,16 @@ import (
+ 	"encoding/json"
+ 	"fmt"
+ 	"net/url"
+-	"os"
++	"crypto/tls"
++ "net"
++ "time"
++ "strconv"
+ 	"strings"
+ 
+ 	"github.com/goccy/go-yaml"
+-	_ "github.com/godror/godror"   // OCI driver
+-	_ "github.com/sijms/go-ora/v2" // Pure Go driver
++	go_ora "github.com/sijms/go-ora/v2" // Pure Go driver only
+ 
+ 	"github.com/googleapis/mcp-toolbox/internal/sources"
+-	"github.com/googleapis/mcp-toolbox/internal/util"
+ 	"go.opentelemetry.io/otel/trace"
+ )
+ 
+@@ -45,6 +46,9 @@ func newConfig(ctx context.Context, name string, decoder *yaml.Decoder) (sources
+ }
+ 
+ type Config struct {
++ TLS bool `yaml:"tls"`
++ PinnedIPs []string `yaml:"pinnedIPs"`
++ AllowPrivate bool `yaml:"allowPrivate"`
+ 	Name             string `yaml:"name" validate:"required"`
+ 	Type             string `yaml:"type" validate:"required"`
+ 	ConnectionString string `yaml:"connectionString,omitempty"`
+@@ -60,38 +64,9 @@ type Config struct {
+ }
+ 
+ func (c Config) validate() error {
+-	hasTnsAdmin := strings.TrimSpace(c.TnsAdmin) != ""
+-	hasTnsAlias := strings.TrimSpace(c.TnsAlias) != ""
+-	hasConnStr := strings.TrimSpace(c.ConnectionString) != ""
+-	hasHostService := strings.TrimSpace(c.Host) != "" && strings.TrimSpace(c.ServiceName) != ""
+-	hasWallet := strings.TrimSpace(c.WalletLocation) != ""
+-
+-	connectionMethods := 0
+-	if hasTnsAlias {
+-		connectionMethods++
+-	}
+-	if hasConnStr {
+-		connectionMethods++
+-	}
+-	if hasHostService {
+-		connectionMethods++
+-	}
+-
+-	if connectionMethods == 0 {
+-		return fmt.Errorf("must provide one of: 'tns_alias', 'connection_string', or both 'host' and 'service_name'")
+-	}
+-
+-	if connectionMethods > 1 {
+-		return fmt.Errorf("provide only one connection method: 'tns_alias', 'connection_string', or 'host'+'service_name'")
+-	}
+-
+-	if hasTnsAdmin && !c.UseOCI {
+-		return fmt.Errorf("`tnsAdmin` can only be used when `UseOCI` is true, or use `walletLocation` instead")
+-	}
+-
+-	if hasWallet && c.UseOCI {
+-		return fmt.Errorf("when using an OCI driver, use `tnsAdmin` to specify credentials file location instead")
+-	}
++ if c.UseOCI || c.ConnectionString != "" || c.TnsAlias != "" || c.TnsAdmin != "" || c.WalletLocation != "" { return fmt.Errorf("only host and service connections are supported") }
++ if c.Host == "" || c.ServiceName == "" || c.Port < 1 || c.Port > 65535 || len(c.PinnedIPs)==0 {return fmt.Errorf("host, service, port and pinned addresses required")}
++ for _, raw := range c.PinnedIPs { ip:=net.ParseIP(raw); if ip==nil || ip.IsUnspecified() || ip.IsMulticast() || (!c.AllowPrivate && !publicIP(ip)) {return fmt.Errorf("address blocked")} ; if !c.TLS && publicIP(ip) {return fmt.Errorf("public addresses require TLS")} }
+ 
+ 	return nil
+ }
+@@ -101,14 +76,16 @@ func (r Config) SourceConfigType() string {
+ }
+ 
+ func (r Config) Initialize(ctx context.Context, tracer trace.Tracer) (sources.Source, error) {
+-	db, err := initOracleConnection(ctx, tracer, r)
++	if err:=r.validate(); err!=nil {return nil,err}
++ db, err := initOracleConnection(ctx, tracer, r)
+ 	if err != nil {
+ 		return nil, fmt.Errorf("unable to create Oracle connection: %w", err)
+ 	}
+ 
+ 	err = db.PingContext(ctx)
+ 	if err != nil {
+-		return nil, fmt.Errorf("unable to connect to Oracle successfully: %w", err)
++		db.Close()
++ return nil, fmt.Errorf("unable to connect to Oracle successfully: %w", err)
+ 	}
+ 
+ 	s := &Source{
+@@ -138,8 +115,11 @@ func (s *Source) OracleDB() *sql.DB {
+ }
+ 
+ func (s *Source) RunSQL(ctx context.Context, statement string, params []any, readOnly bool) (any, error) {
+-	if !readOnly {
+-		result, err := s.OracleDB().ExecContext(ctx, statement, params...)
++	conn, err := s.OracleDB().Conn(ctx)
++ if err != nil {return nil,err}
++ defer conn.Close()
++ if !readOnly {
++		result, err := conn.ExecContext(ctx, statement, params...)
+ 		if err != nil {
+ 			return nil, fmt.Errorf("unable to execute DML statement: %w", err)
+ 		}
+@@ -154,7 +134,7 @@ func (s *Source) RunSQL(ctx context.Context, statement string, params []any, rea
+ 			"rows_affected": rowsAffected,
+ 		}, nil
+ 	}
+-	rows, err := s.OracleDB().QueryContext(ctx, statement, params...)
++	rows, err := conn.QueryContext(ctx, statement, params...)
+ 	if err != nil {
+ 		return nil, fmt.Errorf("unable to execute query: %w", err)
+ 	}
+@@ -175,7 +155,9 @@ func (s *Source) RunSQL(ctx context.Context, statement string, params []any, rea
+ 	}
+ 
+ 	out := []any{}
++ totalBytes:=0
+ 	for rows.Next() {
++ if len(out)>=100 { return out,nil }
+ 		values := make([]any, len(cols))
+ 		for i, colType := range colTypes {
+ 			switch strings.ToUpper(colType.DatabaseTypeName()) {
+@@ -244,7 +226,8 @@ func (s *Source) RunSQL(ctx context.Context, statement string, params []any, rea
+ 				return nil, fmt.Errorf("unexpected receiver type: %T", v)
+ 			}
+ 		}
+-		out = append(out, vMap)
++		encoded,err:=json.Marshal(vMap); if err!=nil{return nil,err}; totalBytes+=len(encoded); if totalBytes>470*1024 {return nil,fmt.Errorf("response exceeds byte limit")}
++ out = append(out, vMap)
+ 	}
+ 
+ 	if err := rows.Err(); err != nil {
+@@ -254,106 +237,24 @@ func (s *Source) RunSQL(ctx context.Context, statement string, params []any, rea
+ 	return out, nil
+ }
+ 
+-func buildGoOraConnString(user, password, connectStringBase, walletLocation string) string {
+-	userInfo := url.UserPassword(
+-		decodePercentEncodedUserInfo(user),
+-		decodePercentEncodedUserInfo(password),
+-	).String()
+-
+-	base := fmt.Sprintf("oracle://%s@%s", userInfo, connectStringBase)
+-	trimmedWalletLocation := strings.TrimSpace(walletLocation)
+-	if trimmedWalletLocation == "" {
+-		return base
+-	}
+-
+-	q := url.Values{}
+-	q.Set("ssl", "true")
+-	q.Set("wallet", trimmedWalletLocation)
+-
+-	separator := "?"
+-	if strings.Contains(connectStringBase, "?") {
+-		separator = "&"
+-		if strings.HasSuffix(base, "?") || strings.HasSuffix(base, "&") {
+-			separator = ""
+-		}
+-	}
+-
+-	return fmt.Sprintf("%s%s%s", base, separator, q.Encode())
++// A connector dialer controls all transport paths, including listener redirects.
++func publicIP(ip net.IP) bool { return ip.IsGlobalUnicast() && !ip.IsPrivate() && !ip.IsLoopback() && !ip.IsLinkLocalUnicast() && !ip.Equal(net.ParseIP("169.254.169.254")) }
++type pinnedDialer struct { host string; port int; ips []string }
++func (d *pinnedDialer) DialContext(ctx context.Context, network,address string) (net.Conn,error) {
++ host,port,err:=net.SplitHostPort(address)
++ if err!=nil || !strings.EqualFold(host,d.host) || port!=strconv.Itoa(d.port) {return nil,fmt.Errorf("Oracle redirect authority blocked")}
++ var last error
++ for _,ip:=range d.ips {conn,err:=(&net.Dialer{Timeout:10*time.Second}).DialContext(ctx,"tcp",net.JoinHostPort(ip,port)); if err==nil{return conn,nil};last=err}
++ return nil,last
+ }
+-
+-func decodePercentEncodedUserInfo(value string) string {
+-	decoded, err := url.PathUnescape(value)
+-	if err != nil {
+-		return value
+-	}
+-	return decoded
+-}
+-
+-func initOracleConnection(ctx context.Context, tracer trace.Tracer, config Config) (*sql.DB, error) {
+-	//nolint:all // Reassigned ctx
+-	ctx, span := sources.InitConnectionSpan(ctx, tracer, SourceType, config.Name)
+-	defer span.End()
+-
+-	logger, err := util.LoggerFromContext(ctx)
+-	if err != nil {
+-		panic(err)
+-	}
+-
+-	hasWallet := strings.TrimSpace(config.WalletLocation) != ""
+-
+-	if config.TnsAdmin != "" {
+-		originalTnsAdmin := os.Getenv("TNS_ADMIN")
+-		os.Setenv("TNS_ADMIN", config.TnsAdmin)
+-		logger.DebugContext(ctx, fmt.Sprintf("Setting TNS_ADMIN to: %s\n", config.TnsAdmin))
+-		// Restore original TNS_ADMIN after connection
+-		defer func() {
+-			if originalTnsAdmin != "" {
+-				os.Setenv("TNS_ADMIN", originalTnsAdmin)
+-			} else {
+-				os.Unsetenv("TNS_ADMIN")
+-			}
+-		}()
+-	}
+-
+-	var connectStringBase string
+-	if config.TnsAlias != "" {
+-		connectStringBase = strings.TrimSpace(config.TnsAlias)
+-	} else if config.ConnectionString != "" {
+-		connectStringBase = strings.TrimSpace(config.ConnectionString)
+-	} else {
+-		if config.Port > 0 {
+-			connectStringBase = fmt.Sprintf("%s:%d/%s", config.Host, config.Port, config.ServiceName)
+-		} else {
+-			connectStringBase = fmt.Sprintf("%s/%s", config.Host, config.ServiceName)
+-		}
+-	}
+-
+-	var driverName string
+-	var finalConnStr string
+-
+-	if config.UseOCI {
+-		// Use godror driver (requires OCI)
+-		driverName = "godror"
+-		finalConnStr = fmt.Sprintf(`user="%s" password="%s" connectString="%s"`,
+-			config.User, config.Password, connectStringBase)
+-		logger.DebugContext(ctx, fmt.Sprintf("Using godror driver (OCI-based) with connectString: %s\n", connectStringBase))
+-	} else {
+-		// Use go-ora driver (pure Go)
+-		driverName = "oracle"
+-
+-		finalConnStr = buildGoOraConnString(config.User, config.Password, connectStringBase, config.WalletLocation)
+-
+-		if hasWallet {
+-			logger.DebugContext(ctx, fmt.Sprintf("Using go-ora driver (pure-Go) with wallet and serverString: %s\n", connectStringBase))
+-		} else {
+-			logger.DebugContext(ctx, fmt.Sprintf("Using go-ora driver (pure-Go) with serverString: %s\n", connectStringBase))
+-		}
+-	}
+-
+-	db, err := sql.Open(driverName, finalConnStr)
+-	if err != nil {
+-		return nil, fmt.Errorf("unable to open Oracle connection with driver %s: %w", driverName, err)
+-	}
+-
+-	return db, nil
++func initOracleConnection(ctx context.Context,tracer trace.Tracer,config Config)(*sql.DB,error) {
++ options:=url.Values{}
++ if config.TLS {options.Set("SSL","true");options.Set("SSL VERIFY","true")}
++ options.Set("PREFETCH_ROWS","1")
++ uri:=url.URL{Scheme:"oracle",User:url.UserPassword(config.User,config.Password),Host:net.JoinHostPort(config.Host,strconv.Itoa(config.Port)),Path:"/"+config.ServiceName,RawQuery:options.Encode()}
++ connector:=go_ora.NewConnector(uri.String()).(*go_ora.OracleConnector)
++ connector.Dialer(&pinnedDialer{host:config.Host,port:config.Port,ips:config.PinnedIPs})
++ connector.WithTLSConfig(&tls.Config{MinVersion:tls.VersionTLS12,ServerName:config.Host})
++ db:=sql.OpenDB(connector);db.SetMaxOpenConns(1);db.SetMaxIdleConns(0)
++ return db,nil
+ }
+diff --git a/internal/sources/oracle/oracle_test.go b/internal/sources/oracle/oracle_test.go
+index dca3628..a7d9bda 100644
+--- a/internal/sources/oracle/oracle_test.go
++++ b/internal/sources/oracle/oracle_test.go
+@@ -1,288 +1,31 @@
+-// Copyright © 2025, Oracle and/or its affiliates.
+-
+ package oracle
+-
+-import (
+-	"context"
+-	"database/sql"
+-	"strings"
+-	"testing"
+-
+-	"github.com/google/go-cmp/cmp"
+-	"github.com/googleapis/mcp-toolbox/internal/server"
+-	"github.com/googleapis/mcp-toolbox/internal/sources"
+-	"github.com/googleapis/mcp-toolbox/internal/testutils"
+-)
+-
+-func TestParseFromYamlOracle(t *testing.T) {
+-	tcs := []struct {
+-		desc string
+-		in   string
+-		want server.SourceConfigs
+-	}{
+-		{
+-			desc: "connection string and useOCI=true",
+-			in: `
+-			kind: source
+-			name: my-oracle-cs
+-			type: oracle
+-			connectionString: "my-host:1521/XEPDB1"
+-			user: my_user
+-			password: my_pass
+-			useOCI: true
+-			`,
+-			want: map[string]sources.SourceConfig{
+-				"my-oracle-cs": Config{
+-					Name:             "my-oracle-cs",
+-					Type:             SourceType,
+-					ConnectionString: "my-host:1521/XEPDB1",
+-					User:             "my_user",
+-					Password:         "my_pass",
+-					UseOCI:           true,
+-				},
+-			},
+-		},
+-		{
+-			desc: "host/port/serviceName and default useOCI=false",
+-			in: `
+-			kind: source
+-			name: my-oracle-host
+-			type: oracle
+-			host: my-host
+-			port: 1521
+-			serviceName: ORCLPDB
+-			user: my_user
+-			password: my_pass
+-			`,
+-			want: map[string]sources.SourceConfig{
+-				"my-oracle-host": Config{
+-					Name:        "my-oracle-host",
+-					Type:        SourceType,
+-					Host:        "my-host",
+-					Port:        1521,
+-					ServiceName: "ORCLPDB",
+-					User:        "my_user",
+-					Password:    "my_pass",
+-					UseOCI:      false,
+-				},
+-			},
+-		},
+-		{
+-			desc: "tnsAlias and TnsAdmin specified with explicit useOCI=true",
+-			in: `
+-			kind: source
+-			name: my-oracle-tns-oci
+-			type: oracle
+-			tnsAlias: FINANCE_DB
+-			tnsAdmin: /opt/oracle/network/admin
+-			user: my_user
+-			password: my_pass
+-			useOCI: true 
+-			`,
+-			want: map[string]sources.SourceConfig{
+-				"my-oracle-tns-oci": Config{
+-					Name:     "my-oracle-tns-oci",
+-					Type:     SourceType,
+-					TnsAlias: "FINANCE_DB",
+-					TnsAdmin: "/opt/oracle/network/admin",
+-					User:     "my_user",
+-					Password: "my_pass",
+-					UseOCI:   true,
+-				},
+-			},
+-		},
+-	}
+-	for _, tc := range tcs {
+-		t.Run(tc.desc, func(t *testing.T) {
+-			got, _, _, _, _, _, err := server.UnmarshalResourceConfig(context.Background(), testutils.FormatYaml(tc.in))
+-			if err != nil {
+-				t.Fatalf("unable to unmarshal: %s", err)
+-			}
+-			if !cmp.Equal(tc.want, got) {
+-				t.Fatalf("incorrect parse:\nwant: %v\ngot:  %v\ndiff: %s", tc.want, got, cmp.Diff(tc.want, got))
+-			}
+-		})
+-	}
+-}
+-
+-func TestBuildGoOraConnString(t *testing.T) {
+-	t.Parallel()
+-
+-	tcs := []struct {
+-		name           string
+-		user           string
+-		password       string
+-		connectBase    string
+-		walletLocation string
+-		want           string
+-	}{
+-		{
+-			name:           "encodes_credentials_and_wallet",
+-			user:           "user[client]",
+-			password:       "pa:ss@word",
+-			connectBase:    "dbhost:1521/XEPDB1",
+-			walletLocation: "/tmp/my wallet",
+-			want:           "oracle://user%5Bclient%5D:pa%3Ass%40word@dbhost:1521/XEPDB1?ssl=true&wallet=%2Ftmp%2Fmy+wallet",
+-		},
+-		{
+-			name:        "no_wallet",
+-			user:        "scott",
+-			password:    "tiger",
+-			connectBase: "dbhost:1521/ORCL",
+-			want:        "oracle://scott:tiger@dbhost:1521/ORCL",
+-		},
+-		{
+-			name:        "does_not_double_encode_percent_encoded_user",
+-			user:        "app_user%5BCLIENT_A%5D",
+-			password:    "secret",
+-			connectBase: "dbhost:1521/ORCL",
+-			want:        "oracle://app_user%5BCLIENT_A%5D:secret@dbhost:1521/ORCL",
+-		},
+-		{
+-			name:           "uses_trimmed_wallet_location",
+-			user:           "scott",
+-			password:       "tiger",
+-			connectBase:    "dbhost:1521/ORCL",
+-			walletLocation: "  /tmp/wallet  ",
+-			want:           "oracle://scott:tiger@dbhost:1521/ORCL?ssl=true&wallet=%2Ftmp%2Fwallet",
+-		},
+-		{
+-			name:           "appends_wallet_query_to_existing_query",
+-			user:           "scott",
+-			password:       "tiger",
+-			connectBase:    "dbhost:1521/ORCL?custom_opt=true",
+-			walletLocation: " /tmp/wallet ",
+-			want:           "oracle://scott:tiger@dbhost:1521/ORCL?custom_opt=true&ssl=true&wallet=%2Ftmp%2Fwallet",
+-		},
+-	}
+-
+-	for _, tc := range tcs {
+-		t.Run(tc.name, func(t *testing.T) {
+-			t.Parallel()
+-			got := buildGoOraConnString(tc.user, tc.password, tc.connectBase, tc.walletLocation)
+-			if got != tc.want {
+-				t.Fatalf("buildGoOraConnString() = %q, want %q", got, tc.want)
+-			}
+-		})
+-	}
+-}
+-
+-func TestFailParseFromYaml(t *testing.T) {
+-	tcs := []struct {
+-		desc string
+-		in   string
+-		err  string
+-	}{
+-		{
+-			desc: "extra field",
+-			in: `
+-			kind: source
+-			name: my-oracle-instance
+-			type: oracle
+-			host: my-host
+-			serviceName: ORCL
+-			user: my_user
+-			password: my_pass
+-			extraField: value
+-			`,
+-			err: "error unmarshaling source: unable to parse source \"my-oracle-instance\" as \"oracle\": [1:1] unknown field \"extraField\"\n>  1 | extraField: value\n       ^\n   2 | host: my-host\n   3 | name: my-oracle-instance\n   4 | password: my_pass\n   5 | ",
+-		},
+-		{
+-			desc: "missing required password field",
+-			in: `
+-			kind: source
+-			name: my-oracle-instance
+-			type: oracle
+-			host: my-host
+-			serviceName: ORCL
+-			user: my_user
+-			`,
+-			err: "error unmarshaling source: unable to parse source \"my-oracle-instance\" as \"oracle\": Key: 'Config.Password' Error:Field validation for 'Password' failed on the 'required' tag",
+-		},
+-		{
+-			desc: "missing connection method fields (validate fails)",
+-			in: `
+-			kind: source
+-			name: my-oracle-instance
+-			type: oracle
+-			user: my_user
+-			password: my_pass
+-			`,
+-			err: "error unmarshaling source: unable to parse source \"my-oracle-instance\" as \"oracle\": invalid Oracle configuration: must provide one of: 'tns_alias', 'connection_string', or both 'host' and 'service_name'",
+-		},
+-		{
+-			desc: "multiple connection methods provided (validate fails)",
+-			in: `
+-			kind: source
+-			name: my-oracle-instance
+-			type: oracle
+-			host: my-host
+-			serviceName: ORCL
+-			connectionString: "my-host:1521/XEPDB1"
+-			user: my_user
+-			password: my_pass
+-			`,
+-			err: "error unmarshaling source: unable to parse source \"my-oracle-instance\" as \"oracle\": invalid Oracle configuration: provide only one connection method: 'tns_alias', 'connection_string', or 'host'+'service_name'",
+-		},
+-		{
+-			desc: "fail on tnsAdmin with useOCI=false",
+-			in: `
+-			kind: source
+-			name: my-oracle-fail
+-			type: oracle
+-			tnsAlias: FINANCE_DB
+-			tnsAdmin: /opt/oracle/network/admin
+-			user: my_user
+-			password: my_pass
+-			useOCI: false
+-			`,
+-			err: "error unmarshaling source: unable to parse source \"my-oracle-fail\" as \"oracle\": invalid Oracle configuration: `tnsAdmin` can only be used when `UseOCI` is true, or use `walletLocation` instead",
+-		},
+-	}
+-	for _, tc := range tcs {
+-		t.Run(tc.desc, func(t *testing.T) {
+-			_, _, _, _, _, _, err := server.UnmarshalResourceConfig(context.Background(), testutils.FormatYaml(tc.in))
+-			if err == nil {
+-				t.Fatalf("expect parsing to fail")
+-			}
+-			errStr := strings.ReplaceAll(err.Error(), "\r", "")
+-
+-			if errStr != tc.err {
+-				t.Fatalf("unexpected error:\ngot:\n%q\nwant:\n%q\n", errStr, tc.err)
+-			}
+-		})
+-	}
+-}
+-
+-// TestRunSQLExecutesDML verifies that RunSQL correctly routes operations to
+-// ExecContext instead of QueryContext when the readOnly flag is set to false.
+-func TestRunSQLExecutesDML(t *testing.T) {
+-	// Initialize a mock database connection.
+-	// This connection is not established with a real backend but
+-	// satisfies the interface requirements for the test.
+-	db, err := sql.Open("oracle", "oracle://user:pass@localhost:1521/service")
+-	if err != nil {
+-		t.Fatalf("failed to open mock db: %v", err)
+-	}
+-	defer db.Close()
+-
+-	src := &Source{
+-		Config: Config{
+-			Name: "test-dml-source",
+-			Type: SourceType,
+-			User: "test-user",
+-		},
+-		DB: db,
+-	}
+-
+-	// Invoke RunSQL with readOnly=false to force the DML execution path.
+-	_, err = src.RunSQL(context.Background(),
+-		"UPDATE users SET email='x' WHERE id=1", nil, false)
+-
+-	// We expect an error because the mock database cannot execute the query.
+-	// If err is nil, it implies the logic skipped the execution block.
+-	if err == nil {
+-		t.Fatal("expected error from fake DB execution, but got nil; " +
+-			"DML path may not have been executed")
+-	}
++import("testing";"context";"net/url";"database/sql";"database/sql/driver";"fmt";"io";"strings")
++func TestPinnedAuthority(t *testing.T){d:=pinnedDialer{host:"example.com",port:1521,ips:[]string{"127.0.0.1"}};if _,err:=d.DialContext(context.Background(),"tcp","evil.example:1521");err==nil{t.Fatal("redirect allowed")}}
++func TestSourceConfig(t *testing.T){c:=Config{Host:"example.com",Port:1521,ServiceName:"FREE",TLS:true,PinnedIPs:[]string{"93.184.216.34"}};if err:=c.validate();err!=nil{t.Fatal(err)};c.UseOCI=true;if c.validate()==nil{t.Fatal("OCI allowed")};c.UseOCI=false;c.TLS=false;if c.validate()==nil{t.Fatal("public plaintext")};c.TLS=true;c.PinnedIPs=[]string{"127.0.0.1"};if c.validate()==nil{t.Fatal("private bypass")}}
++func TestLiteralPassword(t *testing.T){u:=url.URL{Scheme:"oracle",User:url.UserPassword("u","p%40$literal"),Host:"example.com:1521",Path:"/FREE"};parsed,_:=url.Parse(u.String());p,_:=parsed.User.Password();if p!="p%40$literal"{t.Fatal("credential changed")}}
++
++type fakeDriver struct{}
++type fakeConn struct{}
++type fakeRows struct{ i int; large bool }
++var execCalls int
++var largeRows bool
++func (fakeDriver) Open(string)(driver.Conn,error){return fakeConn{},nil}
++func (fakeConn) Prepare(string)(driver.Stmt,error){return nil,fmt.Errorf("unexpected prepare")}
++func (fakeConn) Close()error{return nil}
++func (fakeConn) Begin()(driver.Tx,error){return nil,fmt.Errorf("unexpected transaction")}
++func (fakeConn) QueryContext(context.Context,string,[]driver.NamedValue)(driver.Rows,error){return &fakeRows{large:largeRows},nil}
++func (fakeConn) ExecContext(context.Context,string,[]driver.NamedValue)(driver.Result,error){execCalls++;return nil,driver.ErrBadConn}
++func (fakeRows) Columns()[]string{return []string{"VALUE"}}
++func (fakeRows) Close()error{return nil}
++func (r *fakeRows) Next(dst []driver.Value)error{if r.i>=200{return io.EOF};r.i++;if r.large{dst[0]=strings.Repeat("x",480*1024)}else{dst[0]="value"};return nil}
++func TestBoundedRowsAndNoWriteRetry(t *testing.T){
++ sql.Register("fs-oracle-fake",fakeDriver{})
++ db,err:=sql.Open("fs-oracle-fake","");if err!=nil{t.Fatal(err)};defer db.Close()
++ s:=Source{DB:db}
++ out,err:=s.RunSQL(context.Background(),"SELECT VALUE FROM dual",nil,true);if err!=nil{t.Fatal(err)};if len(out.([]any))!=100{t.Fatal("row bound missing")}
++ largeRows=true
++ if _,err:=s.RunSQL(context.Background(),"SELECT VALUE FROM dual",nil,true);err==nil{t.Fatal("byte bound missing")}
++ largeRows=false
++ if _,err:=s.RunSQL(context.Background(),"UPDATE t SET v=1",nil,false);err==nil{t.Fatal("write error swallowed")}
++ if execCalls!=1{t.Fatalf("write retried %d times",execCalls)}
+ }
+diff --git a/internal/tools/oracle/oraclesql/oraclesql.go b/internal/tools/oracle/oraclesql/oraclesql.go
+index 0d40a96..fd5f9df 100644
+--- a/internal/tools/oracle/oraclesql/oraclesql.go
++++ b/internal/tools/oracle/oraclesql/oraclesql.go
+@@ -4,6 +4,10 @@ package oraclesql
+ 
+ import (
+ 	"context"
++ "encoding/json"
++ "bytes"
++ "io"
++ "strconv"
+ 	"database/sql"
+ 	"fmt"
+ 	"net/http"
+@@ -38,6 +42,8 @@ type compatibleSource interface {
+ }
+ 
+ type Config struct {
++ StaticParameters string `yaml:"staticParameters"`
++ MaxRows int `yaml:"maxRows"`
+ 	Name               string                 `yaml:"name" validate:"required"`
+ 	Type               string                 `yaml:"type" validate:"required"`
+ 	Source             string                 `yaml:"source" validate:"required"`
+@@ -89,29 +95,21 @@ func (t Tool) Invoke(ctx context.Context, resourceMgr tools.SourceProvider, para
+ 		return nil, util.NewClientServerError("source used is not compatible with the tool", http.StatusInternalServerError, err)
+ 	}
+ 
+-	paramsMap := params.AsMap()
+-	newStatement, err := parameters.ResolveTemplateParams(t.TemplateParameters, t.Statement, paramsMap)
+-	if err != nil {
+-		return nil, util.NewAgentError("unable to extract template params", err)
+-	}
+-
+-	newParams, err := parameters.GetParams(t.Parameters, paramsMap)
+-	if err != nil {
+-		return nil, util.NewAgentError("unable to extract standard params", err)
+-	}
+-	sliceParams := newParams.AsSlice()
+-
+-	for i, p := range sliceParams {
+-		fmt.Printf("[%d]=%T ", i, p)
+-	}
+-	fmt.Printf("\n")
++ if len(t.TemplateParameters)>0 || len(t.Parameters)>0 {return nil,util.NewAgentError("only static bound values are supported",fmt.Errorf("templates disabled"))}
++ sliceParams,err:=staticParams(t.StaticParameters)
++ if err!=nil {return nil,util.NewAgentError("invalid bind values",err)}
++ newStatement:=t.Statement
+ 
+ 	isReadOnly := true
+ 	if t.ReadOnly != nil {
+ 		isReadOnly = *t.ReadOnly
+ 	}
+ 
+-	resp, err := source.RunSQL(ctx, newStatement, sliceParams, isReadOnly)
++	if isReadOnly {
++  maxRows:=t.MaxRows; if maxRows<1 || maxRows>100 {maxRows=100}
++  newStatement="SELECT * FROM ("+newStatement+") WHERE ROWNUM <= "+strconv.Itoa(maxRows)
++ }
++ resp, err := source.RunSQL(ctx, newStatement, sliceParams, isReadOnly)
+ 
+ 	if err != nil {
+ 		return nil, util.ProcessGeneralError(err)
+@@ -166,3 +164,17 @@ func (t Tool) GetParameters() parameters.Parameters {
+ func (t Tool) GetScopesRequired() []string {
+ 	return t.ScopesRequired
+ }
++
++// JSON numbers are decoded precisely rather than converting every integer to float64.
++func staticParams(raw string)([]any,error){
++ decoder:=json.NewDecoder(bytes.NewBufferString(raw));decoder.UseNumber()
++ var result []any
++ if err:=decoder.Decode(&result);err!=nil{return nil,err}
++ var extra any;if err:=decoder.Decode(&extra);err!=io.EOF{return nil,fmt.Errorf("trailing JSON")}
++ if len(result)>100{return nil,fmt.Errorf("too many parameters")}
++ for i,value:=range result {switch v:=value.(type){case nil,string:case json.Number:
++  if !stringsContainsDecimal(v.String()){n,err:=v.Int64();if err!=nil{return nil,err};result[i]=n}else{n,err:=v.Float64();if err!=nil{return nil,err};result[i]=n}
++ default:return nil,fmt.Errorf("scalar parameters required")}}
++ return result,nil
++}
++func stringsContainsDecimal(value string)bool{for _,c:=range value {if c=='.'||c=='e'||c=='E'{return true}};return false}
+diff --git a/internal/tools/oracle/oraclesql/oraclesql_test.go b/internal/tools/oracle/oraclesql/oraclesql_test.go
+index ae41904..f53244e 100644
+--- a/internal/tools/oracle/oraclesql/oraclesql_test.go
++++ b/internal/tools/oracle/oraclesql/oraclesql_test.go
+@@ -1,133 +1,4 @@
+-// Copyright © 2025, Oracle and/or its affiliates.
+-package oraclesql_test
+-
+-import (
+-	"testing"
+-
+-	"github.com/google/go-cmp/cmp"
+-	"github.com/googleapis/mcp-toolbox/internal/server"
+-	"github.com/googleapis/mcp-toolbox/internal/testutils"
+-	"github.com/googleapis/mcp-toolbox/internal/tools/oracle/oraclesql"
+-)
+-
+-func TestParseFromYamlOracleSql(t *testing.T) {
+-	ctx, err := testutils.ContextWithNewLogger()
+-	if err != nil {
+-		t.Fatalf("unexpected error: %s", err)
+-	}
+-
+-	valTrue := true
+-	valFalse := false
+-
+-	tcs := []struct {
+-		desc string
+-		in   string
+-		want server.ToolConfigs
+-	}{
+-		{
+-			desc: "basic example with statement and auth",
+-			in: `
+-            kind: tool
+-            name: get_user_by_id
+-            type: oracle-sql
+-            source: my-oracle-instance
+-            description: Retrieves user details by ID.
+-            statement: "SELECT id, name, email FROM users WHERE id = :1"
+-            authRequired:
+-                - my-google-auth-service
+-            `,
+-			want: server.ToolConfigs{
+-				"get_user_by_id": oraclesql.Config{
+-					Name:         "get_user_by_id",
+-					Type:         "oracle-sql",
+-					Source:       "my-oracle-instance",
+-					Description:  "Retrieves user details by ID.",
+-					Statement:    "SELECT id, name, email FROM users WHERE id = :1",
+-					ReadOnly:     nil,
+-					AuthRequired: []string{"my-google-auth-service"},
+-				},
+-			},
+-		},
+-		{
+-			desc: "example with parameters and template parameters",
+-			in: `
+-            kind: tool
+-            name: get_orders
+-            type: oracle-sql
+-            source: db-prod
+-            description: Gets orders for a customer with optional filtering.
+-            statement: "SELECT * FROM ${SCHEMA}.ORDERS WHERE customer_id = :customer_id AND status = :status"
+-            `,
+-			want: server.ToolConfigs{
+-				"get_orders": oraclesql.Config{
+-					Name:         "get_orders",
+-					Type:         "oracle-sql",
+-					Source:       "db-prod",
+-					Description:  "Gets orders for a customer with optional filtering.",
+-					Statement:    "SELECT * FROM ${SCHEMA}.ORDERS WHERE customer_id = :customer_id AND status = :status",
+-					ReadOnly:     nil,
+-					AuthRequired: []string{},
+-				},
+-			},
+-		},
+-		{
+-			desc: "explicit: readOnly set to true",
+-			in: `
+-			kind: tool
+-			name: safe_query
+-			type: oracle-sql
+-			source: db-prod
+-			description: Safe read operation.
+-			readOnly: true
+-			statement: "SELECT * FROM orders"
+-			`,
+-			want: server.ToolConfigs{
+-				"safe_query": oraclesql.Config{
+-					Name:         "safe_query",
+-					Type:         "oracle-sql",
+-					Source:       "db-prod",
+-					Description:  "Safe read operation.",
+-					Statement:    "SELECT * FROM orders",
+-					ReadOnly:     &valTrue,
+-					AuthRequired: []string{},
+-				},
+-			},
+-		},
+-		{
+-			desc: "example with readonly flag set to false (DML)",
+-			in: `
+-			kind: tool
+-			name: update_user
+-			type: oracle-sql
+-			source: db-prod
+-			description: Updates user email.
+-			readOnly: false
+-			statement: "UPDATE users SET email = :1 WHERE id = :2"
+-			`,
+-			want: server.ToolConfigs{
+-				"update_user": oraclesql.Config{
+-					Name:         "update_user",
+-					Type:         "oracle-sql",
+-					Source:       "db-prod",
+-					Description:  "Updates user email.",
+-					Statement:    "UPDATE users SET email = :1 WHERE id = :2",
+-					ReadOnly:     &valFalse,
+-					AuthRequired: []string{},
+-				},
+-			},
+-		},
+-	}
+-	for _, tc := range tcs {
+-		t.Run(tc.desc, func(t *testing.T) {
+-			// Parse contents
+-			_, _, _, got, _, _, err := server.UnmarshalResourceConfig(ctx, testutils.FormatYaml(tc.in))
+-			if err != nil {
+-				t.Fatalf("unable to unmarshal: %s", err)
+-			}
+-			if diff := cmp.Diff(tc.want, got); diff != "" {
+-				t.Fatalf("incorrect parse: diff %v", diff)
+-			}
+-		})
+-	}
+-
+-}
++package oraclesql
++import("testing")
++func TestStaticBindings(t *testing.T){p,err:=staticParams(`[1,1.0,null,"x' DELETE"]`);if err!=nil{t.Fatal(err)};if _,ok:=p[0].(int64);!ok{t.Fatal("integer lost")};if _,ok:=p[1].(float64);!ok{t.Fatal("float lost")};if p[2]!=nil{t.Fatal("null lost")}}
++func TestRejectInvalidBindings(t *testing.T){for _,s:=range []string{`[{}]`,`[true]`,`[] []`,`[9223372036854775808]`}{if _,err:=staticParams(s);err==nil{t.Fatal(s)}}}

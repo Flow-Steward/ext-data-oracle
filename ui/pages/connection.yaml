@@ -1,0 +1,10 @@
+{
+  "page_id": "connection",
+  "title": "Connections",
+  "description": "Choose one Oracle database service endpoint.",
+  "components": [
+    {
+      "ref": "../components/oracle_connection_form.yaml"
+    }
+  ]
+}
