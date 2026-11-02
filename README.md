@@ -42,3 +42,34 @@ Primary implementation references:
 - [Google Toolbox Oracle source at the pinned commit](https://github.com/googleapis/mcp-toolbox/blob/b0010060a939455d91e4f8ba62dc3e72b1892469/internal/sources/oracle/oracle.go)
 - [go-ora v2.9.0 connector](https://github.com/sijms/go-ora/blob/v2.9.0/v2/connection.go)
 - [go-ora TLS network implementation](https://github.com/sijms/go-ora/blob/v2.9.0/v2/network/session.go)
+
+Dataset/Data Query support (1.1.0): the `oracle` dataset connector accepts the
+host's resolved `connection_config` and `secret_refs` with the existing connection
+schema. It supports connection testing, schema discovery, validation, preview,
+saved-template execution and output-schema inference. Host runtime account and
+project scope are required. Dataset queries require matching saved-template and
+dataset IDs and an explicit resource allowlist of unquoted `SCHEMA.TABLE` names.
+Column allowlists apply to every projected, filtered and ordered column; omitted
+column lists permit all explicit columns for that resource.
+
+The saved SQL subset is deliberately conservative: `SELECT ID, VALUE FROM
+APP.THINGS WHERE ID=:id ORDER BY VALUE DESC`. One qualified table, explicit plain
+columns, scalar comparison predicates combined with AND/OR, IS [NOT] NULL and
+ORDER BY are supported. Aliases, expressions/functions/casts, quoted identifiers,
+star projections, joins, subqueries, unions, comments and scripts are refused.
+Named parameters declared as string/integer/number/null in `param_schema_jsonb`
+are compiled into native positional Oracle binds without substituting values.
+Boolean binds are not supported by this Oracle profile. Existing positional
+workflow query and opted-in DML operations retain their original contracts.
+
+Dataset execution is bounded to 100 rows, 400 KiB result data and the smaller of
+the requested deadline and the connection timeout (maximum 30 seconds). Results
+at a row cap are conservatively marked truncated. Empty results preserve the
+saved output schema, or return explicit projected columns with null types when
+no saved schema exists. Schema discovery reads at most 100 metadata columns and
+32 selected tables under one deadline; cap hits are marked truncated (even when
+the final metadata row happens to equal the cap). Initial discovery without a
+dataset lists only the authenticated user's owner schema; subsequent discovery
+uses only selected resources and columns. Oracle access remains governed by the
+database user's grants. No live Oracle account was available for this change;
+provider-fake contract tests do not prove live server behavior.

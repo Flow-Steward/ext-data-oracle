@@ -15,15 +15,27 @@ def test_contracts_and_effects():
         == load("extension-descriptor.yaml")["extension_id"]
         == "flowsteward.oracle"
     )
-    assert m["features"] == ["tool", "action"]
+    assert m["features"] == ["tool", "dataset_connector", "action", "query"]
     assert m["egress"] == {"connection_fields": ["oracle.host"]}
     assert {o["operation_id"] for o in load("contracts/operation_manifest.yaml")["operations"]} == {
         "query",
         "execute_sql",
+        "test_connection",
+        "introspect_schema",
+        "validate_query",
+        "preview_query",
+        "execute_template",
+        "infer_output_schema",
     }
     assert {o["action_id"] for o in load("ui/actions/actions.yaml")["actions"]} == {
         "query",
         "execute_sql",
+        "test_connection",
+        "introspect_schema",
+        "validate_query",
+        "preview_query",
+        "execute_template",
+        "infer_output_schema",
     }
     assert {o["operation_id"] for o in m["external_effects"]} == {"execute_sql"}
     c = load("contracts/connection_types.yaml")["connection_types"][0]

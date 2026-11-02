@@ -2,7 +2,7 @@
   "manifest_version": 2,
   "extension_id": "flowsteward.oracle",
   "kind": "tool_provider",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "release_stage": "active",
   "display_name": "Oracle",
   "description": "Bounded Oracle SELECT and opted-in DML with native bind parameters through Google MCP Toolbox.",
@@ -24,7 +24,9 @@
   },
   "features": [
     "tool",
-    "action"
+    "dataset_connector",
+    "action",
+    "query"
   ],
   "required_scopes": [
     "extension:invoke"
@@ -64,7 +66,146 @@
     "extension_contract_v2": {
       "connection_types": "contracts/connection_types.yaml",
       "operation_manifest": "contracts/operation_manifest.yaml",
-      "step_ui_manifest": "contracts/step_ui_manifest.yaml"
+      "step_ui_manifest": "contracts/step_ui_manifest.yaml",
+      "dataset_connectors": [
+        {
+          "connector_id": "oracle",
+          "connector_type_id": "oracle",
+          "database_kind": "oracle",
+          "display_name": "Oracle",
+          "description": "Bounded read-only Oracle schema inspection and saved single-table SQL queries.",
+          "source_kind": "oracle",
+          "source_extension_id": "flowsteward.oracle",
+          "source_extension_name": "Oracle",
+          "source_provider": "Oracle",
+          "query_language": "sql",
+          "access_mode": "read_only",
+          "runtime_kind": "local_extension",
+          "runtime_adapter_ref": "main.py",
+          "connector_catalog": [
+            {
+              "source_kind": "oracle",
+              "connector_type_id": "oracle",
+              "display_name": "Oracle",
+              "query_language": "sql",
+              "preset_config": {}
+            }
+          ],
+          "connection_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "host",
+              "service_name"
+            ],
+            "properties": {
+              "host": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 253,
+                "title": "Server hostname or IP"
+              },
+              "port": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 65535,
+                "default": 1521
+              },
+              "tls": {
+                "type": "boolean",
+                "default": true
+              },
+              "request_timeout_seconds": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 30,
+                "default": 15
+              },
+              "service_name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "allow_writes": {
+                "type": "boolean",
+                "default": false
+              }
+            }
+          },
+          "secret_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "username",
+              "password"
+            ],
+            "properties": {
+              "username": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8192,
+                "title": "Username"
+              },
+              "password": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8192,
+                "title": "Password"
+              }
+            }
+          },
+          "capabilities": {
+            "read_only": true,
+            "test_connection": true,
+            "schema_introspection": true,
+            "validate_query": true,
+            "preview_query": true,
+            "execute_template": true,
+            "infer_output_schema": true,
+            "write_queries": false,
+            "row_preview": true
+          },
+          "safety_profile": {
+            "access_mode": "read_only",
+            "indexes_rows": false,
+            "executes_write_queries": false,
+            "requires_saved_template": true
+          },
+          "preview_support": true,
+          "schema_refresh_support": true
+        }
+      ],
+      "resource_query_manifest": [
+        {
+          "query_id": "runtime_health",
+          "cursor_mode": "none",
+          "description": "Oracle runtime health.",
+          "required_scopes": [
+            "extension:invoke"
+          ],
+          "result_fields": [
+            "result.status",
+            "result.extension_id"
+          ],
+          "error_codes": [
+            "invalid_payload"
+          ]
+        },
+        {
+          "query_id": "supported_connectors",
+          "cursor_mode": "none",
+          "description": "Oracle supported connectors.",
+          "required_scopes": [
+            "extension:invoke"
+          ],
+          "result_fields": [
+            "result.connectors"
+          ],
+          "error_codes": [
+            "invalid_payload"
+          ]
+        }
+      ]
     }
   },
   "external_effects": [
@@ -81,5 +222,6 @@
     "required_scopes": [
       "extension:invoke"
     ]
-  }
+  },
+  "query_manifest": "ui/queries/queries.yaml"
 }

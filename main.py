@@ -6,6 +6,7 @@ import sys
 import time
 from flowsteward_extension_sdk import runtime_context_from_payload
 import toolbox
+import datasets
 from commands import WRITES, execute, validate
 from validation import Failure, bounded_json, connection_values, require
 
@@ -16,7 +17,7 @@ def handle(payload):
     try:
         bounded_json(payload)
         runtime_context_from_payload(payload)
-        require(payload.get("mode") == "action", "An action invocation is required.")
+        mode = payload.get("mode")
         action = payload.get("action") or {}
         name = action.get("action_id")
         args = action.get("input", {})
@@ -30,6 +31,20 @@ def handle(payload):
                 "A project-scoped account and project are required.",
             )
         require(type(context.get("test_mode", False)) is bool, "test_mode must be boolean.")
+        if mode == "query":
+            query_id = (payload.get("query") or {}).get("query_id")
+            require(query_id in {"supported_connectors", "runtime_health"}, "Unknown Oracle query.")
+            result = (
+                {"connectors": datasets.catalog()}
+                if query_id == "supported_connectors"
+                else {"status": "healthy", "extension_id": "flowsteward.oracle"}
+            )
+            return {"ok": True, "result": result, "errors": []}
+        require(mode == "action", "An action invocation is required.")
+        if name in datasets.ACTIONS:
+            result = datasets.handle(name, args, toolbox.invoke)
+            bounded_json(result, 480 * 1024)
+            return {"ok": True, "result": result, "errors": []}
         connection = (action.get("target") or {}).get("connection") or {}
         require(
             isinstance(connection, dict)
