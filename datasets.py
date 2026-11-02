@@ -406,7 +406,7 @@ def handle(name, args, invoke):
         code="invalid_provider_response",
     )
     schema = args["query_template"].get("output_schema_jsonb")
-    if not isinstance(schema, dict) or not schema:
+    if name == "infer_output_schema" or not isinstance(schema, dict) or not schema:
         schema = {
             "type": "object",
             "properties": {

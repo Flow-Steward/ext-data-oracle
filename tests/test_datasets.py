@@ -164,3 +164,18 @@ def test_initial_admin_schema_discovery_needs_no_saved_template(monkeypatch):
     response = main.handle(payload)
     assert response["ok"], response
     assert response["result"]["schema_snapshot"]["resources"][0]["resource_id"] == "U.THINGS"
+
+
+@pytest.mark.parametrize("rows,kind", [([{"VALUE": "fresh"}], "string"), ([], "null")])
+def test_infer_schema_uses_current_projection_not_stale_saved_schema(monkeypatch, rows, kind):
+    monkeypatch.setattr(main.toolbox, "invoke", lambda *a, **k: [rows])
+    payload = dataset_envelope("infer_output_schema")
+    template = payload["action"]["input"]["query_template"]
+    template["query_definition_jsonb"]["sql"] = "SELECT VALUE FROM APP.THINGS WHERE ID=:id"
+    template["output_schema_jsonb"] = {"type": "object", "properties": {"ID": {"type": "integer"}}}
+    response = main.handle(payload)
+    assert response["ok"], response
+    assert response["result"]["output_schema"] == {
+        "type": "object",
+        "properties": {"VALUE": {"type": kind}},
+    }
