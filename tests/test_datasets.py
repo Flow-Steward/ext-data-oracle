@@ -179,3 +179,69 @@ def test_infer_schema_uses_current_projection_not_stale_saved_schema(monkeypatch
         "type": "object",
         "properties": {"VALUE": {"type": kind}},
     }
+
+
+def admin_envelope(action):
+    """Core connection_actions / datasets_helpers, after host scope normalization."""
+    payload = dataset_envelope(action)
+    payload["runtime_context"] = {
+        "source": "data_connection"
+        if action in {"test_connection", "introspect_schema"}
+        else "registry_saved_queries",
+        "group_id": None,
+        "for_each_id": None,
+        "step_id": None,
+        "step_execution_id": None,
+    }
+    payload["action"]["context"] = {"workspace_id": "w", "connection_id": "c"}
+    if action in {"test_connection", "introspect_schema"}:
+        payload["action"]["input"] = {
+            key: payload["action"]["input"][key] for key in ("connection_config", "secret_refs")
+        }
+    else:
+        payload["action"]["context"].update({"dataset_id": "d", "project_id": "p"})
+    return payload
+
+
+@pytest.mark.parametrize(
+    "action",
+    [
+        "test_connection",
+        "introspect_schema",
+        "validate_query",
+        "preview_query",
+        "execute_template",
+        "infer_output_schema",
+    ],
+)
+def test_core_admin_read_actions_accept_host_resolved_connection_without_workflow_ids(
+    monkeypatch, action
+):
+    def provider(config, secrets, command, arguments, **kwargs):
+        if "ALL_TAB_COLUMNS" in command["statement"]:
+            return [
+                [
+                    {
+                        "OWNER": "U",
+                        "TABLE_NAME": "THINGS",
+                        "COLUMN_NAME": "ID",
+                        "DATA_TYPE": "NUMBER",
+                        "NULLABLE": "N",
+                    }
+                ]
+            ]
+        return [[{"ID": 7, "VALUE": "ok"}]]
+
+    monkeypatch.setattr(main.toolbox, "invoke", provider)
+    response = main.handle(admin_envelope(action))
+    assert response["ok"], response
+
+
+def test_core_admin_catalog_accepts_null_execution_scope_but_checks_sdk_envelope():
+    payload = admin_envelope("test_connection")
+    payload.pop("action")
+    payload["mode"] = "query"
+    payload["query"] = {"query_id": "supported_connectors"}
+    assert main.handle(payload)["ok"]
+    payload["runtime_context"].pop("step_execution_id")
+    assert not main.handle(payload)["ok"]

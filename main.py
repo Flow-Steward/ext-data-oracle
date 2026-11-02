@@ -24,12 +24,6 @@ def handle(payload):
         require(isinstance(args, dict), "Input must be an object.")
         bounded_json(args)
         context = payload["runtime_context"]
-        for scope_id in ("account_id", "project_id"):
-            value = context.get(scope_id)
-            require(
-                isinstance(value, str) and bool(value.strip()),
-                "A project-scoped account and project are required.",
-            )
         require(type(context.get("test_mode", False)) is bool, "test_mode must be boolean.")
         if mode == "query":
             query_id = (payload.get("query") or {}).get("query_id")
@@ -45,6 +39,12 @@ def handle(payload):
             result = datasets.handle(name, args, toolbox.invoke)
             bounded_json(result, 480 * 1024)
             return {"ok": True, "result": result, "errors": []}
+        for scope_id in ("account_id", "project_id"):
+            value = context.get(scope_id)
+            require(
+                isinstance(value, str) and bool(value.strip()),
+                "A project-scoped account and project are required.",
+            )
         connection = (action.get("target") or {}).get("connection") or {}
         require(
             isinstance(connection, dict)

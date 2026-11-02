@@ -46,9 +46,11 @@ Primary implementation references:
 Dataset/Data Query support (1.1.0): the `oracle` dataset connector accepts the
 host's resolved `connection_config` and `secret_refs` with the existing connection
 schema. It supports connection testing, schema discovery, validation, preview,
-saved-template execution and output-schema inference. Host runtime account and
-project scope are required. Dataset queries require matching saved-template and
-dataset IDs and an explicit resource allowlist of unquoted `SCHEMA.TABLE` names.
+saved-template execution and output-schema inference. The host authorizes and
+resolves connection credentials before dispatch. Read-only Dataset/admin actions
+accept its null execution scope without workflow account/project fields. Existing
+workflow query/DML operations still require runtime account and project scope.
+Dataset queries require matching saved-template and dataset IDs and an explicit resource allowlist of unquoted `SCHEMA.TABLE` names.
 Column allowlists apply to every projected, filtered and ordered column; omitted
 column lists permit all explicit columns for that resource.
 
