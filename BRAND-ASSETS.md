@@ -1,13 +1,16 @@
 # Brand artwork
 
-`icon.png` identifies Oracle Database.
+`icon.png` identifies Oracle using original official brand artwork.
 
-Source: https://www.oracle.com/asset/web/favicons/favicon-192.png
+Reference: https://www.oracle.com/news/resources/
 
-Reference: https://www.oracle.com/asset/web/favicons/
+Source: https://www.oracle.com/a/pr/docs/oracle-logo.zip
 
-Official brand asset; trademark rights retained by brand owner. No separate permissive artwork license verified; software license is not asserted to license the logo.
+Archive member: `Oracle logo.png`.
 
-Preparation: Standard ImageMagick raster conversion/resizing, centered on 256x256 canvas; no generative edits.
+Source SHA-256: `f80120b81cfd714d4df7f807ddbb6835ea7bda21b868ca59fa5ddff1bba135d9`.
+Packaged PNG SHA-256: `f11415500fac3668ddcd6577d7bb5137cc2ae1e4b33077b354de852c0e51697c`.
 
-Source SHA-256: `b3ad291d75a80c3514e5b056da003553d9cfee21d136fa310f72a0d69ad029e6`. Packaged PNG SHA-256: `c81ee41f29858815dde6d963472150118e95eaa07dd739852b00ae031c97cffd`.
+Preparation: ImageMagick: magick SOURCE -resize 224x224 -background none -gravity center -extent 256x256 replacement.png. Aspect ratio preserved; original source clearspace retained; no redraw, crop, recolor, or generative edits.
+
+Official brand asset; trademark rights retained by brand owner. No separate permissive artwork license verified; software license does not purport to license the logo. No endorsement implied.
