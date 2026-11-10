@@ -2,7 +2,7 @@
 
 Standalone `flowsteward.oracle` extension for one Oracle database service. Executes
 one conservative SELECT (`query`) or one INSERT, UPDATE, DELETE or MERGE
-(`execute_sql`) through a minimal, pinned Google MCP Toolbox v1.3.0 build.
+(`execute_sql`) through a minimal, pinned Google MCP Toolbox v1.16.0 build.
 No triggers, DDL, PL/SQL, transactions/scripts, wallets, RAC/cluster routing,
 caller connection strings or executable overrides.
 
@@ -39,7 +39,7 @@ server TLS negotiation have not been verified.** Compile and contract evidence
 must not be read as live integration evidence. The live test reports a skip.
 
 Primary implementation references:
-- [Google Toolbox Oracle source at the pinned commit](https://github.com/googleapis/mcp-toolbox/blob/b0010060a939455d91e4f8ba62dc3e72b1892469/internal/sources/oracle/oracle.go)
+- [Google Toolbox Oracle source at the pinned commit](https://github.com/googleapis/mcp-toolbox/blob/06ea49d9a487a72c22419b5a8d5c22c11f0d7485/internal/sources/oracle/oracle.go)
 - [go-ora v2.9.0 connector](https://github.com/sijms/go-ora/blob/v2.9.0/v2/connection.go)
 - [go-ora TLS network implementation](https://github.com/sijms/go-ora/blob/v2.9.0/v2/network/session.go)
 

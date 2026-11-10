@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_actual_native_artifacts_and_provenance():
     p = json.loads((ROOT / "toolbox-provenance.json").read_text())
-    assert p["commit"] == "b0010060a939455d91e4f8ba62dc3e72b1892469"
+    assert p["commit"] == "06ea49d9a487a72c22419b5a8d5c22c11f0d7485"
     assert p["driver"]["version"] == "v2.9.0"
     assert hashlib.sha256((ROOT / p["patch"]).read_bytes()).hexdigest() == p["patch_sha256"]
     assert p["packages"] == [
