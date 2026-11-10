@@ -14,5 +14,6 @@
   "driver": {
     "module": "github.com/sijms/go-ora/v2",
     "version": "v2.9.0"
-  }
+  },
+  "go_image_role": "bootstrap"
 }
