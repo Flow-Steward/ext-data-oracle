@@ -1,6 +1,6 @@
 # Oracle for Flow Steward
 
-Flow Steward extension `flowsteward.oracle`, version **1.1.5**.
+Flow Steward extension `flowsteward.oracle`, version **1.1.6**.
 
 Connect Oracle records to Flow Steward for database lookups, reusable datasets and workflow updates. The extension provides a SELECT action with positional bind values and a separate write action for INSERT, UPDATE, DELETE and MERGE. Use these steps to look up a customer before routing a request, record the outcome of a workflow, or merge incoming records into an existing application table without inserting values into SQL text.
 
@@ -79,3 +79,31 @@ dataset lists only the authenticated user's owner schema; subsequent discovery
 uses only selected resources and columns. Oracle access remains governed by the
 database user's grants. No live Oracle account was available for this change;
 provider-fake contract tests do not prove live server behavior.
+
+## Automated releases
+
+CI runs on pull requests and pushes to `main`. Official releases run through the
+pinned shared GitHub Actions workflow using `.github/release-config.json` to test,
+package both Linux runtime targets, and publish the release assets automatically.
+Manual ZIP uploads are not part of the release process.
+
+After merging the version **1.1.6** update into `main`, create and push its tag:
+
+```sh
+git switch main
+git pull --ff-only
+git tag -a v1.1.6 -m "Release v1.1.6"
+git push origin v1.1.6
+```
+
+To rerun the workflow for an existing tag without moving it:
+
+```sh
+gh workflow run release.yml --ref main -f tag=v1.1.6
+```
+
+The manifest remains the source for release identity and catalog descriptions.
+The shared workflow installs the verified first-party SDK wheel before test
+dependencies. Where native payloads are absent from source, the recipe restores
+only the listed missing files from checksum-pinned published archives; the source
+packager still verifies their provenance before packaging.
