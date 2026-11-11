@@ -1,10 +1,14 @@
 # Oracle for Flow Steward
 
-Standalone `flowsteward.oracle` extension for one Oracle database service. Executes
-one conservative SELECT (`query`) or one INSERT, UPDATE, DELETE or MERGE
-(`execute_sql`) through a minimal, pinned Google MCP Toolbox v1.16.0 build.
-No triggers, DDL, PL/SQL, transactions/scripts, wallets, RAC/cluster routing,
-caller connection strings or executable overrides.
+Flow Steward extension `flowsteward.oracle`, version **1.1.5**.
+
+Connect Oracle records to Flow Steward for database lookups, reusable datasets and workflow updates. The extension provides a SELECT action with positional bind values and a separate write action for INSERT, UPDATE, DELETE and MERGE. Use these steps to look up a customer before routing a request, record the outcome of a workflow, or merge incoming records into an existing application table without inserting values into SQL text.
+
+The read-only Dataset connector adds connection testing, schema discovery, query validation, previews, saved-query execution and output-schema inference. Saved Dataset queries select explicit columns from one allowed SCHEMA.TABLE, with comparison or null filters and ordering. Selected table and column permissions constrain the query, while Oracle user grants determine the underlying access.
+
+Configure one Oracle service per project connection and enable writes explicitly when needed. Query results contain at most 100 rows. Dataset SQL excludes joins, subqueries, expressions and star projections; workflow SQL has a separate, restricted statement contract. Schema administration, PL/SQL, scripts, database links and cluster routing are outside the extension’s scope.
+
+Create a project Oracle connection with host, port, service name, TLS settings and secret username/password; enable allow_writes for mutation steps. Public endpoints require verified TLS, and private endpoints require host administrator permission.
 
 Project connection settings: `host`, `port` (1521), `service_name`, `tls` (true),
 `allow_writes` (false), `request_timeout_seconds` (15, maximum 30). Secrets:
