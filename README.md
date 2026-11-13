@@ -1,6 +1,6 @@
 # Oracle for Flow Steward
 
-Flow Steward extension `flowsteward.oracle`, version **1.1.7**.
+Flow Steward extension `flowsteward.oracle`, version **1.1.8**.
 
 Connect Oracle records to Flow Steward for database lookups, reusable datasets and workflow updates. The extension provides a SELECT action with positional bind values and a separate write action for INSERT, UPDATE, DELETE and MERGE. Use these steps to look up a customer before routing a request, record the outcome of a workflow, or merge incoming records into an existing application table without inserting values into SQL text.
 
@@ -43,9 +43,9 @@ server TLS negotiation have not been verified.** Compile and contract evidence
 must not be read as live integration evidence. The live test reports a skip.
 
 Primary implementation references:
-- [Google Toolbox Oracle source at the pinned commit](https://github.com/googleapis/mcp-toolbox/blob/06ea49d9a487a72c22419b5a8d5c22c11f0d7485/internal/sources/oracle/oracle.go)
-- [go-ora v2.9.0 connector](https://github.com/sijms/go-ora/blob/v2.9.0/v2/connection.go)
-- [go-ora TLS network implementation](https://github.com/sijms/go-ora/blob/v2.9.0/v2/network/session.go)
+- [Google Toolbox Oracle source at the pinned commit](https://github.com/googleapis/mcp-toolbox/blob/45ed205cc8682ed066c82e0b65bcd0e8fc3becce/internal/sources/oracle/oracle.go)
+- [go-ora v3.0.1 connector](https://github.com/sijms/go-ora/blob/v3.0.1/connection.go)
+- [go-ora TLS network implementation](https://github.com/sijms/go-ora/blob/v3.0.1/network/session.go)
 
 Dataset/Data Query support (1.1.0): the `oracle` dataset connector accepts the
 host's resolved `connection_config` and `secret_refs` with the existing connection
@@ -87,27 +87,28 @@ pinned shared GitHub Actions workflow using `.github/release-config.json` to tes
 package both Linux runtime targets, and publish the release assets automatically.
 Manual ZIP uploads are not part of the release process.
 
-After merging the version **1.1.7** update into `main`, create and push its tag:
+After merging the version **1.1.8** update into `main`, create and push its tag:
 
 ```sh
 git switch main
 git pull --ff-only
-git tag -a v1.1.7 -m "Release v1.1.7"
-git push origin v1.1.7
+git tag -a v1.1.8 -m "Release v1.1.8"
+git push origin v1.1.8
 ```
 
 To rerun the workflow for an existing tag without moving it:
 
 ```sh
-gh workflow run release.yml --ref main -f tag=v1.1.7
+gh workflow run release.yml --ref main -f tag=v1.1.8
 ```
 
 The manifest remains the source for release identity and catalog descriptions.
 The shared workflow installs the verified first-party SDK wheel before test
-dependencies. Where native payloads are absent from source, the recipe restores
-only the listed missing files from checksum-pinned published archives; the source
-packager still verifies their provenance before packaging.
+dependencies. CI builds each native payload from the reviewed source and module
+lock, then verifies its actual build information before packaging.
 
 ## Workflow action setup and examples
 
 See [Workflow actions](docs/workflow-actions.md) for choosing Dataset reads versus explicit writes, connection requirements and copyable field examples.
+
+Native CI builds Toolbox v1.17.0 from its pinned official source commit. Set `TOOLBOX_SOURCE` or `FS_TOOLBOX_SOURCE_DIR` only to an exact clean checkout. Generated native payloads and provenance are produced during CI and included in each target archive.

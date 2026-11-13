@@ -19,8 +19,8 @@ index 4810e98a1d..2bfe24c3cf 100644
  
  	"github.com/goccy/go-yaml"
 -	_ "github.com/godror/godror"   // OCI driver
--	_ "github.com/sijms/go-ora/v2" // Pure Go driver
-+	go_ora "github.com/sijms/go-ora/v2" // Pure Go driver only
+-	_ "github.com/sijms/go-ora/v3" // Pure Go driver
++	go_ora "github.com/sijms/go-ora/v3" // Pure Go driver only
  
  	"github.com/googleapis/mcp-toolbox/internal/sources"
 -	"github.com/googleapis/mcp-toolbox/internal/util"

@@ -7,3 +7,9 @@ dist/
 SHA256SUMS
 
 /dev-wheels/
+
+# Native CI outputs; reviewed build recipes remain tracked.
+/toolbox-provenance.json
+/SHA256SUMS
+/scripts/go-toolchain-selected.json
+/bin/

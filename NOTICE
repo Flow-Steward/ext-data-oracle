@@ -1,10 +1,10 @@
 Flow Steward Oracle extension
 Copyright 2026 Flow Steward contributors
 
-Packaged native executable derives from Google MCP Toolbox for Databases v1.16.0,
-commit 06ea49d9a487a72c22419b5a8d5c22c11f0d7485, Apache License 2.0.
+Packaged native executable derives from Google MCP Toolbox for Databases v1.17.0,
+commit 45ed205cc8682ed066c82e0b65bcd0e8fc3becce, Apache License 2.0.
 Oracle source contributions copyright 2025 Oracle and/or its affiliates.
-Pure-Go Oracle driver github.com/sijms/go-ora/v2 v2.9.0 is MIT licensed.
+Pure-Go Oracle driver github.com/sijms/go-ora/v3 v3.0.1 is MIT licensed.
 The source modification is supplied in scripts/patches/0001-flowsteward-oracle-safety.patch.
 No Oracle OCI libraries are distributed.
 See LICENSE, toolbox-provenance.json and the pinned upstream modules for attribution.

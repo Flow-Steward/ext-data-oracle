@@ -8,8 +8,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_actual_native_artifacts_and_provenance():
     p = json.loads((ROOT / "toolbox-provenance.json").read_text())
-    assert p["commit"] == "06ea49d9a487a72c22419b5a8d5c22c11f0d7485"
-    assert p["driver"]["version"] == "v2.9.0"
+    assert p["commit"] == "45ed205cc8682ed066c82e0b65bcd0e8fc3becce"
+    assert p["driver"]["version"] == "v3.0.1"
     assert hashlib.sha256((ROOT / p["patch"]).read_bytes()).hexdigest() == p["patch_sha256"]
     assert p["packages"] == [
         "github.com/googleapis/mcp-toolbox/internal/sources/oracle",
