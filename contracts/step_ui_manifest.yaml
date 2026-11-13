@@ -2,43 +2,53 @@
   "forms": [
     {
       "operation_id": "query",
-      "title": "Query Oracle",
+      "title": "Oracle: Read rows with a SELECT query",
       "fields": [
         {
           "name": "statement",
           "widget_type": "textarea",
-          "label": "SQL statement",
-          "required": true
+          "label": "SELECT query",
+          "required": true,
+          "help_text": "Enter one bounded SELECT. Example: SELECT order_id, status FROM orders WHERE status = :1",
+          "placeholder": "SELECT order_id, status FROM orders WHERE status = :1"
         },
         {
           "name": "parameters",
           "widget_type": "json",
-          "label": "Positional bind values",
-          "required": false
+          "label": "Positional parameter values (JSON array)",
+          "required": false,
+          "help_text": "Supply values in placeholder order: :1 is the first array item, :2 the second. Values are bound separately from SQL. Example: [\"approved\"]",
+          "placeholder": "[\"approved\"]"
         },
         {
           "name": "max_rows",
           "widget_type": "integer",
-          "label": "Maximum rows",
-          "required": false
+          "label": "Maximum returned rows",
+          "required": false,
+          "help_text": "Read 1 to 100 rows; default 100. Use 10 for an initial preview. This bounds returned data, not a pagination cursor.",
+          "placeholder": "10"
         }
       ]
     },
     {
       "operation_id": "execute_sql",
-      "title": "Execute Oracle DML",
+      "title": "Oracle: Insert, update, delete or merge rows",
       "fields": [
         {
           "name": "statement",
           "widget_type": "textarea",
-          "label": "SQL statement",
-          "required": true
+          "label": "SQL write statement",
+          "required": true,
+          "help_text": "Enter one supported write statement. Example: UPDATE orders SET status = :1 WHERE order_id = :2",
+          "placeholder": "UPDATE orders SET status = :1 WHERE order_id = :2"
         },
         {
           "name": "parameters",
           "widget_type": "json",
-          "label": "Positional bind values",
-          "required": false
+          "label": "Positional parameter values (JSON array)",
+          "required": false,
+          "help_text": "Supply values in placeholder order: :1 is the first array item, :2 the second. Values are bound separately from SQL. Example: [\"approved\",1042]",
+          "placeholder": "[\"approved\",1042]"
         }
       ]
     }

@@ -3,8 +3,8 @@
     {
       "action_id": "query",
       "workflow_visible": true,
-      "title": "Query Oracle",
-      "description": "One bounded SELECT with positional :1 binds.",
+      "title": "Oracle: Read rows with a SELECT query",
+      "description": "Read up to 100 rows from one bounded SELECT, for example approved orders for a later workflow step. Select an Oracle project connection configured with its host, service name and secret username/password. Example SQL: SELECT order_id, status FROM orders WHERE status = :1. Pass values in a JSON array corresponding to :1, :2 and subsequent positional binds. The action does not modify database rows.",
       "required_scopes": [
         "extension:invoke"
       ],
@@ -15,22 +15,26 @@
         {
           "name": "connection_ref",
           "type": "string",
-          "required": true
+          "required": true,
+          "description": "Select an Oracle project connection configured with its host, service name and secret username/password."
         },
         {
           "name": "statement",
           "type": "string",
-          "required": true
+          "required": true,
+          "description": "Enter one bounded SELECT. Example: SELECT order_id, status FROM orders WHERE status = :1"
         },
         {
           "name": "parameters",
           "type": "json",
-          "required": false
+          "required": false,
+          "description": "Supply values in placeholder order: :1 is the first array item, :2 the second. Values are bound separately from SQL. Example: [\"approved\"]"
         },
         {
           "name": "max_rows",
           "type": "integer",
-          "required": false
+          "required": false,
+          "description": "Read 1 to 100 rows; default 100. Use 10 for an initial preview. This bounds returned data, not a pagination cursor."
         }
       ],
       "result_fields": [
@@ -57,8 +61,8 @@
     {
       "action_id": "execute_sql",
       "workflow_visible": true,
-      "title": "Execute Oracle DML",
-      "description": "One INSERT, UPDATE, DELETE or MERGE. Requires writes enabled and durable effect claim.",
+      "title": "Oracle: Insert, update, delete or merge rows",
+      "description": "Write workflow results using one INSERT, UPDATE, DELETE or MERGE. Select an Oracle project connection configured with its host, service name and secret username/password. Enable allow_writes on the connection and grant its user permission to modify the target table. Example SQL: UPDATE orders SET status = :1 WHERE order_id = :2. Pass values in a JSON array corresponding to :1, :2 and subsequent positional binds. Test mode suppresses writes.",
       "required_scopes": [
         "extension:invoke"
       ],
@@ -69,17 +73,20 @@
         {
           "name": "connection_ref",
           "type": "string",
-          "required": true
+          "required": true,
+          "description": "Select an Oracle project connection configured with its host, service name and secret username/password. Enable allow_writes on the connection and grant its user permission to modify the target table."
         },
         {
           "name": "statement",
           "type": "string",
-          "required": true
+          "required": true,
+          "description": "Enter one supported write statement. Example: UPDATE orders SET status = :1 WHERE order_id = :2"
         },
         {
           "name": "parameters",
           "type": "json",
-          "required": false
+          "required": false,
+          "description": "Supply values in placeholder order: :1 is the first array item, :2 the second. Values are bound separately from SQL. Example: [\"approved\",1042]"
         }
       ],
       "result_fields": [

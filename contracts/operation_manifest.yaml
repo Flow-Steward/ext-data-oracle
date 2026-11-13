@@ -2,8 +2,8 @@
   "operations": [
     {
       "operation_id": "query",
-      "display_name": "Query Oracle",
-      "description": "One bounded SELECT with positional :1 binds.",
+      "display_name": "Oracle: Read rows with a SELECT query",
+      "description": "Read up to 100 rows from one bounded SELECT, for example approved orders for a later workflow step. Select an Oracle project connection configured with its host, service name and secret username/password. Example SQL: SELECT order_id, status FROM orders WHERE status = :1. Pass values in a JSON array corresponding to :1, :2 and subsequent positional binds. The action does not modify database rows.",
       "operation_kind": "action",
       "workflow_visible": true,
       "connection_type_ids": [
@@ -15,40 +15,44 @@
           "name": "connection_ref",
           "value_type": "connection_ref",
           "required": true,
-          "display_name": "Connection"
+          "display_name": "Oracle project connection",
+          "description": "Select an Oracle project connection configured with its host, service name and secret username/password."
         },
         {
           "name": "statement",
           "value_type": "text",
           "required": true,
-          "display_name": "SQL statement",
+          "display_name": "SELECT query",
           "schema": {
             "type": "string",
             "minLength": 1,
             "maxLength": 32768
-          }
+          },
+          "description": "Enter one bounded SELECT. Example: SELECT order_id, status FROM orders WHERE status = :1"
         },
         {
           "name": "parameters",
           "value_type": "json",
           "required": false,
-          "display_name": "Positional bind values",
+          "display_name": "Positional parameter values (JSON array)",
           "schema": {
             "type": "array",
             "maxItems": 100
-          }
+          },
+          "description": "Supply values in placeholder order: :1 is the first array item, :2 the second. Values are bound separately from SQL. Example: [\"approved\"]"
         },
         {
           "name": "max_rows",
           "value_type": "integer",
           "required": false,
-          "display_name": "Maximum rows",
+          "display_name": "Maximum returned rows",
           "schema": {
             "type": "integer",
             "minimum": 1,
             "maximum": 100,
             "default": 100
-          }
+          },
+          "description": "Read 1 to 100 rows; default 100. Use 10 for an initial preview. This bounds returned data, not a pagination cursor."
         }
       ],
       "outputs": [
@@ -87,8 +91,8 @@
     },
     {
       "operation_id": "execute_sql",
-      "display_name": "Execute Oracle DML",
-      "description": "One INSERT, UPDATE, DELETE or MERGE. Requires writes enabled and durable effect claim.",
+      "display_name": "Oracle: Insert, update, delete or merge rows",
+      "description": "Write workflow results using one INSERT, UPDATE, DELETE or MERGE. Select an Oracle project connection configured with its host, service name and secret username/password. Enable allow_writes on the connection and grant its user permission to modify the target table. Example SQL: UPDATE orders SET status = :1 WHERE order_id = :2. Pass values in a JSON array corresponding to :1, :2 and subsequent positional binds. Test mode suppresses writes.",
       "operation_kind": "action",
       "workflow_visible": true,
       "connection_type_ids": [
@@ -100,28 +104,31 @@
           "name": "connection_ref",
           "value_type": "connection_ref",
           "required": true,
-          "display_name": "Connection"
+          "display_name": "Oracle project connection",
+          "description": "Select an Oracle project connection configured with its host, service name and secret username/password. Enable allow_writes on the connection and grant its user permission to modify the target table."
         },
         {
           "name": "statement",
           "value_type": "text",
           "required": true,
-          "display_name": "SQL statement",
+          "display_name": "SQL write statement",
           "schema": {
             "type": "string",
             "minLength": 1,
             "maxLength": 32768
-          }
+          },
+          "description": "Enter one supported write statement. Example: UPDATE orders SET status = :1 WHERE order_id = :2"
         },
         {
           "name": "parameters",
           "value_type": "json",
           "required": false,
-          "display_name": "Positional bind values",
+          "display_name": "Positional parameter values (JSON array)",
           "schema": {
             "type": "array",
             "maxItems": 100
-          }
+          },
+          "description": "Supply values in placeholder order: :1 is the first array item, :2 the second. Values are bound separately from SQL. Example: [\"approved\",1042]"
         }
       ],
       "outputs": [
