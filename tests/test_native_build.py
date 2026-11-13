@@ -44,3 +44,20 @@ def test_native_version_runs_without_network():
     )
     assert completed.returncode == 0
     assert b"flowsteward.oracle" in completed.stdout + completed.stderr
+
+
+def test_ci_source_build_does_not_track_generated_native_binaries():
+    """A native rebuild must preserve the release validator's clean source index."""
+    import subprocess
+
+    tracked = subprocess.check_output(
+        ["git", "-C", str(ROOT), "ls-files", "--", "bin/"], text=True
+    ).splitlines()
+    assert tracked == [], f"CI-generated native binaries must be untracked: {tracked}"
+    for target in ("linux-amd64", "linux-arm64"):
+        result = subprocess.run(
+            ["git", "-C", str(ROOT), "check-ignore", "--", f"bin/{target}/toolbox"],
+            check=False,
+            capture_output=True,
+        )
+        assert result.returncode == 0, f"Generated native target must be ignored: {target}"
