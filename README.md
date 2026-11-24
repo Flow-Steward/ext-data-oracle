@@ -43,7 +43,7 @@ server TLS negotiation have not been verified.** Compile and contract evidence
 must not be read as live integration evidence. The live test reports a skip.
 
 Primary implementation references:
-- [Google Toolbox Oracle source at the pinned commit](https://github.com/googleapis/mcp-toolbox/blob/45ed205cc8682ed066c82e0b65bcd0e8fc3becce/internal/sources/oracle/oracle.go)
+- [Google Toolbox Oracle source at the pinned commit](https://github.com/googleapis/mcp-toolbox/blob/24762d91babd43d91afc3daeeece1cb446266c54/internal/sources/oracle/oracle.go)
 - [go-ora v3.0.1 connector](https://github.com/sijms/go-ora/blob/v3.0.1/connection.go)
 - [go-ora TLS network implementation](https://github.com/sijms/go-ora/blob/v3.0.1/network/session.go)
 
@@ -111,4 +111,4 @@ lock, then verifies its actual build information before packaging.
 
 See [Workflow actions](docs/workflow-actions.md) for choosing Dataset reads versus explicit writes, connection requirements and copyable field examples.
 
-Native CI builds Toolbox v1.17.0 from its pinned official source commit. Set `TOOLBOX_SOURCE` or `FS_TOOLBOX_SOURCE_DIR` only to an exact clean checkout. Generated native payloads and provenance are produced during CI and included in each target archive.
+Native CI builds Toolbox v1.18.0 from its pinned official source commit. Set `TOOLBOX_SOURCE` or `FS_TOOLBOX_SOURCE_DIR` only to an exact clean checkout. Generated native payloads and provenance are produced during CI and included in each target archive.
